@@ -101,7 +101,7 @@ function App() {
               sAVAX <span className="text-indigo-400">Arbitrage</span>
             </h1>
             <p className="text-slate-400 max-w-lg mx-auto text-lg">
-              AI-powered analysis to optimize your liquid staking strategy on Avalanche.
+              Real-time market analysis to optimize your liquid staking strategy on Avalanche.
             </p>
           </div>
         </header>
