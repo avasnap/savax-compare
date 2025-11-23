@@ -1,8 +1,4 @@
-import { GoogleGenAI } from "@google/genai";
 import { MarketData } from "../types";
-
-// Initialize Gemini API Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 const SAVAX_ADDRESS = "0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE";
 const WAVAX_ADDRESS = "0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7";
@@ -71,87 +67,11 @@ const getDexScreenerPrice = async (): Promise<DexScreenerData | null> => {
 
 export const fetchMarketInsights = async (chainlinkRate?: number): Promise<MarketData> => {
   try {
-    const model = 'gemini-2.5-flash';
-    
-    // 1. Get Real Data from DexScreener
+    // Get DEX price from DexScreener
     const dexData = await getDexScreenerPrice();
     const dexPrice = dexData?.price || 0;
-    
-    // 2. Prepare Prompt for Analysis
-    let prompt = "";
-    const tools: any[] = [];
-    
-    // If we are missing the protocol rate (RPC failed), ask Gemini to find it.
-    if (!chainlinkRate || chainlinkRate === 0) {
-        prompt = `
-          I need to compare the sAVAX price on DEXs vs the BENQI Staking Protocol rate.
-          
-          1. DEX Price (from DexScreener): 1 sAVAX = ${dexPrice > 0 ? dexPrice.toFixed(5) : 'UNKNOWN'} AVAX.
-          
-          2. I do NOT have the Protocol Exchange Rate. 
-          Please use Google Search to find the current "BENQI sAVAX exchange rate" or "How much AVAX is 1 sAVAX on BENQI".
-          Look for the official redemption rate. It should be greater than 1.0.
-          
-          Task:
-          - Extract the Staking Rate (AVAX per sAVAX).
-          - Compare it with the DEX Price.
-          - Recommend BUY (if DEX < Stake) or STAKE (if DEX > Stake).
-          
-          Output strictly valid JSON:
-          {
-            "stakingRate": number (the rate found, e.g. 1.25),
-            "analysis": "2 sentences recommendation."
-          }
-        `;
-        tools.push({ googleSearch: {} });
-    } else {
-        // We have both rates
-        prompt = `
-          I am analyzing the sAVAX (Staked AVAX) market on Avalanche.
-          
-          Market Data:
-          - DEX Price: 1 sAVAX = ${dexPrice.toFixed(5)} AVAX.
-          - Protocol Rate: 1 sAVAX = ${chainlinkRate.toFixed(5)} AVAX.
-          
-          Task:
-          Compare DEX price to Staking Rate.
-          If DEX Price < Staking Rate => BUY.
-          If DEX Price > Staking Rate => STAKE.
-          
-          Output strictly valid JSON:
-          {
-            "analysis": "2 sentences recommendation."
-          }
-        `;
-    }
 
-    // 3. Call Gemini
-    const response = await ai.models.generateContent({
-      model,
-      contents: prompt,
-      config: {
-        tools: tools.length > 0 ? tools : undefined,
-        temperature: 0.2,
-      },
-    });
-
-    let jsonText = response.text || "{}";
-    
-    // Clean up potential markdown code blocks
-    const jsonMatch = jsonText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      jsonText = jsonMatch[0];
-    }
-    
-    let parsed: any = {};
-    try {
-      parsed = JSON.parse(jsonText);
-    } catch (e) {
-      console.error("Failed to parse Gemini JSON response:", e);
-      parsed = { analysis: "Analysis currently unavailable." };
-    }
-    
-    // Construct Source List
+    // Build sources list
     const sources = [];
     if (dexData) {
       sources.push({
@@ -159,33 +79,33 @@ export const fetchMarketInsights = async (chainlinkRate?: number): Promise<Marke
         uri: dexData.url
       });
     }
-    
-    // Add grounding sources if any
-    if (response.candidates?.[0]?.groundingMetadata?.groundingChunks) {
-      response.candidates[0].groundingMetadata.groundingChunks.forEach((chunk: any) => {
-        if (chunk.web?.uri && chunk.web?.title) {
-          sources.push({ title: chunk.web.title, uri: chunk.web.uri });
-        }
-      });
-    }
 
-    // Determine final rate to return
-    // If we passed a chainlinkRate, use it. If not, use the one found by AI (parsed.stakingRate)
-    const finalStakingRate = chainlinkRate || parsed.stakingRate || 0;
+    // Generate simple analysis based on comparison
+    let analysis = "Compare DEX price vs Protocol rate to find the best value.";
+    if (dexPrice > 0 && chainlinkRate && chainlinkRate > 0) {
+      if (dexPrice < chainlinkRate) {
+        const savings = ((chainlinkRate - dexPrice) / chainlinkRate * 100).toFixed(2);
+        analysis = `Buying sAVAX on the DEX is currently ${savings}% cheaper than minting via the protocol. This represents an arbitrage opportunity.`;
+      } else if (dexPrice > chainlinkRate) {
+        const premium = ((dexPrice - chainlinkRate) / chainlinkRate * 100).toFixed(2);
+        analysis = `Minting sAVAX via the protocol is currently ${premium}% cheaper than buying on the DEX. Direct staking provides better value.`;
+      } else {
+        analysis = "DEX price and protocol rate are approximately equal. Either method provides similar value.";
+      }
+    }
 
     return {
       dexPrice: dexPrice,
-      stakingRate: finalStakingRate,
-      analysis: parsed.analysis || "Market analysis unavailable.",
+      stakingRate: chainlinkRate || 0,
+      analysis,
       sources
     };
   } catch (error) {
     console.error("Error fetching market insights:", error);
-    // Return partial data if possible
     return {
         dexPrice: 0,
         stakingRate: chainlinkRate || 0,
-        analysis: "Service temporarily unavailable.",
+        analysis: "Unable to fetch market data. Please try again.",
         sources: []
     };
   }

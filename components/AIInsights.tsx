@@ -18,7 +18,7 @@ export const AIInsights: React.FC<AIInsightsProps> = ({ analysis, onRefresh }) =
         
         {/* Attribution / Model Info */}
         <span className="text-[10px] uppercase tracking-widest text-slate-600 font-bold">
-          Powered by Gemini 2.5 & Chainlink
+          Powered by DexScreener & Avalanche RPC
         </span>
       </div>
 

@@ -9,10 +9,10 @@ const RPC_URLS = [
 const SAVAX_CONTRACT = "0x2b2C81e08f1Af8835a78Bb2A90AE924ACE0eA4bE";
 
 const fetchRateFromRpc = async (url: string): Promise<number> => {
-  // getPooledAvaxByShares(uint256 sharesAmount)
-  // Selector: 0x77c7b8fc
+  // getPooledAvaxByShares(uint256 shareAmount)
+  // Selector: 0x4a36d6c1
   // Argument: 1 sAVAX (1e18) = 0de0b6b3a7640000 (hex) padded to 32 bytes
-  const methodId = "0x77c7b8fc";
+  const methodId = "0x4a36d6c1";
   const amountParam = "0000000000000000000000000000000000000000000000000de0b6b3a7640000";
   
   const payload = {
